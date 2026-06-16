@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Buat Laporan — RoadWatch</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="../css/style.css" />
+  <style>
+    #map { height: 300px; border-radius: 10px; }
+    #canvas-preview { display:none; width:100%; border-radius:10px; border:2px solid #e2e8f0; max-height:220px; object-fit:cover; }
+    #video-stream   { width:100%; border-radius:10px; display:none; max-height:220px; object-fit:cover; }
+    .filter-btn.active { border-color:#0369a1; background:#eff6ff; color:#0369a1; font-weight:600; }
+    #geocode-status { font-size:11px; margin-top:4px; min-height:16px; }
+  </style>
+</head>
+<body class="bg-light">
+
+  <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+    <div class="container">
+      <a class="navbar-brand fw-bold" href="../index.html"><i class="ti ti-road me-2"></i>RoadWatch</a>
+      <div class="d-flex gap-2">
+        <a href="riwayat.html" class="btn btn-outline-light btn-sm"><i class="ti ti-list me-1"></i>Riwayat</a>
+        <a href="peta.html" class="btn btn-outline-light btn-sm"><i class="ti ti-map me-1"></i>Peta</a>
+        <button class="btn btn-outline-light btn-sm" onclick="logout()"><i class="ti ti-logout me-1"></i>Logout</button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container py-4" style="max-width:720px">
+    <div class="mb-4">
+      <h4 class="fw-bold mb-1"><i class="ti ti-pencil-plus me-2 text-primary"></i>Buat Laporan Baru</h4>
+      <p class="text-muted small mb-0">Isi semua informasi kerusakan dengan lengkap agar petugas dapat segera menangani.</p>
+    </div>
+
+    <div id="msg-form"></div>
+
+    <!-- STEP 1: FOTO -->
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-body">
+        <h6 class="fw-bold mb-3"><span class="badge bg-primary me-2">1</span>Foto Kerusakan</h6>
+        <div id="preview-container" class="mb-3">
+          <video id="video-stream" autoplay playsinline></video>
+          <canvas id="canvas-preview"></canvas>
+          <div id="placeholder-foto" class="bg-light border rounded d-flex flex-column align-items-center justify-content-center py-4 text-muted">
+            <i class="ti ti-camera" style="font-size:2.5rem"></i>
+            <p class="small mt-2 mb-0">Foto belum diambil</p>
+          </div>
+        </div>
+        <div class="d-flex flex-wrap gap-2 mb-3">
+          <button class="btn btn-outline-primary btn-sm" onclick="bukaKamera()" id="btn-kamera"><i class="ti ti-camera me-1"></i>Buka Kamera</button>
+          <button class="btn btn-primary btn-sm d-none" onclick="ambilFoto()" id="btn-foto"><i class="ti ti-camera-selfie me-1"></i>Ambil Foto</button>
+          <button class="btn btn-outline-secondary btn-sm d-none" onclick="retakeFoto()" id="btn-retake"><i class="ti ti-refresh me-1"></i>Ulangi</button>
+          <label class="btn btn-outline-secondary btn-sm mb-0">
+            <i class="ti ti-upload me-1"></i>Upload File
+            <input type="file" id="file-foto" accept="image/*" class="d-none" onchange="uploadFoto(this)" />
+          </label>
+        </div>
+        <div id="filter-section" class="d-none">
+          <p class="small text-muted fw-semibold mb-2"><i class="ti ti-adjustments me-1"></i>Filter Gambar:</p>
+          <div class="d-flex flex-wrap gap-2">
+            <button class="btn btn-sm btn-outline-secondary filter-btn active" onclick="applyFilter('normal',this)">Normal</button>
+            <button class="btn btn-sm btn-outline-secondary filter-btn" onclick="applyFilter('grayscale',this)">Grayscale</button>
+            <button class="btn btn-sm btn-outline-secondary filter-btn" onclick="applyFilter('brightness',this)">Terang</button>
+            <button class="btn btn-sm btn-outline-secondary filter-btn" onclick="applyFilter('contrast',this)">Kontras</button>
+            <button class="btn btn-sm btn-outline-secondary filter-btn" onclick="applyFilter('dark',this)">Gelap</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 2: LOKASI -->
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-body">
+        <h6 class="fw-bold mb-3"><span class="badge bg-primary me-2">2</span>Lokasi Kerusakan</h6>
+        <div id="map" class="mb-2"></div>
+
+        <!-- Status geocoding -->
+        <div id="geocode-status" class="text-muted">
+          <i class="ti ti-map-pin me-1"></i>Klik peta atau gunakan GPS untuk menentukan lokasi
+        </div>
+
+        <div class="d-flex gap-2 mt-2 mb-3">
+          <button class="btn btn-outline-primary btn-sm" onclick="gunakanGPS()" id="btn-gps">
+            <i class="ti ti-gps me-1"></i>Gunakan GPS Saya
+          </button>
+        </div>
+
+        <div class="row g-2">
+          <div class="col-md-8">
+            <label class="form-label small fw-semibold">Alamat Lengkap <span class="text-muted fw-normal">(otomatis terisi dari peta)</span></label>
+            <div class="input-group input-group-sm">
+              <span class="input-group-text"><i class="ti ti-map-pin"></i></span>
+              <input type="text" id="alamat" class="form-control" placeholder="Klik peta untuk mengisi otomatis..." />
+              <span class="input-group-text" id="geocode-spinner" style="display:none">
+                <div class="spinner-border spinner-border-sm text-primary" style="width:14px;height:14px"></div>
+              </span>
+            </div>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small fw-semibold">Latitude</label>
+            <input type="text" id="lat" class="form-control form-control-sm bg-light" readonly placeholder="-" />
+          </div>
+          <div class="col-md-2">
+            <label class="form-label small fw-semibold">Longitude</label>
+            <input type="text" id="lng" class="form-control form-control-sm bg-light" readonly placeholder="-" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 3: DETAIL -->
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-body">
+        <h6 class="fw-bold mb-3"><span class="badge bg-primary me-2">3</span>Detail Laporan</h6>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">Kategori Kerusakan</label>
+            <select id="kategori" class="form-select form-select-sm">
+              <option value="">-- Pilih Kategori --</option>
+              <option>Jalan Berlubang</option>
+              <option>Trotoar Rusak</option>
+              <option>Got / Drainase Tersumbat</option>
+              <option>Lampu Jalan Mati</option>
+              <option>Rambu Lalu Lintas Rusak</option>
+              <option>Jembatan Rusak</option>
+              <option>Lainnya</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold">Tingkat Urgensi</label>
+            <select id="urgensi" class="form-select form-select-sm">
+              <option value="">-- Pilih Urgensi --</option>
+              <option value="Tinggi">🔴 Tinggi — Berbahaya / Mendesak</option>
+              <option value="Sedang">🟡 Sedang — Perlu segera ditangani</option>
+              <option value="Rendah">🟢 Rendah — Tidak mendesak</option>
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Deskripsi Kerusakan</label>
+            <textarea id="deskripsi" class="form-control form-control-sm" rows="4"
+              placeholder="Jelaskan kerusakan: kondisinya seperti apa, sudah berapa lama, dan dampaknya bagi pengguna jalan..."></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="d-grid gap-2">
+      <button class="btn btn-primary btn-lg fw-semibold" onclick="kirimLaporan()">
+        <i class="ti ti-send me-2"></i>Kirim Laporan
+      </button>
+      <a href="../index.html" class="btn btn-outline-secondary">Batal</a>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="../js/auth.js"></script>
+  <script src="../js/data.js"></script>
+  <script>
+    requireLogin();
+
+    // ============ PETA + REVERSE GEOCODING ============
+    const defaultLat = -7.2575, defaultLng = 112.7521;
+    let map    = L.map('map').setView([defaultLat, defaultLng], 13);
+    let marker = null;
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    // FIX: klik peta → set koordinat → reverse geocode otomatis
+    map.on('click', e => setLokasi(e.latlng.lat, e.latlng.lng));
+
+    function setLokasi(lat, lng) {
+      if (marker) map.removeLayer(marker);
+      marker = L.marker([lat, lng]).addTo(map).bindPopup('Lokasi laporan').openPopup();
+      document.getElementById('lat').value = lat.toFixed(6);
+      document.getElementById('lng').value = lng.toFixed(6);
+      map.setView([lat, lng], 16);
+      reverseGeocode(lat, lng);
+    }
+
+    // Reverse geocoding pakai Nominatim (OpenStreetMap, GRATIS)
+    async function reverseGeocode(lat, lng) {
+      const statusEl  = document.getElementById('geocode-status');
+      const spinnerEl = document.getElementById('geocode-spinner');
+      const alamatEl  = document.getElementById('alamat');
+
+      statusEl.innerHTML  = '<span class="text-primary"><i class="ti ti-loader me-1"></i>Mencari alamat...</span>';
+      spinnerEl.style.display = 'inline-flex';
+
+      try {
+        const res  = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=id`,
+          { headers: { 'Accept-Language': 'id' } }
+        );
+        const data = await res.json();
+
+        if (data && data.display_name) {
+          // Format alamat yang lebih ringkas
+          const a = data.address || {};
+          const parts = [
+            a.road || a.pedestrian || a.footway,
+            a.suburb || a.neighbourhood || a.village,
+            a.city || a.town || a.county,
+            a.state
+          ].filter(Boolean);
+
+          const alamat = parts.length > 0 ? parts.join(', ') : data.display_name;
+          alamatEl.value = alamat;
+          statusEl.innerHTML = '<span class="text-success"><i class="ti ti-circle-check me-1"></i>Alamat ditemukan otomatis</span>';
+        } else {
+          statusEl.innerHTML = '<span class="text-warning"><i class="ti ti-alert-triangle me-1"></i>Alamat tidak ditemukan, isi manual</span>';
+        }
+      } catch (e) {
+        statusEl.innerHTML = '<span class="text-danger"><i class="ti ti-wifi-off me-1"></i>Gagal ambil alamat, isi manual</span>';
+      } finally {
+        spinnerEl.style.display = 'none';
+      }
+    }
+
+    function gunakanGPS() {
+      const btn = document.getElementById('btn-gps');
+      if (!navigator.geolocation) { showToast('Browser tidak mendukung GPS.', 'danger'); return; }
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Mencari lokasi...';
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          setLokasi(pos.coords.latitude, pos.coords.longitude);
+          showToast('Lokasi GPS berhasil ditemukan!');
+          btn.disabled = false;
+          btn.innerHTML = '<i class="ti ti-gps me-1"></i>Gunakan GPS Saya';
+        },
+        () => {
+          showToast('Gagal mendapatkan lokasi GPS.', 'danger');
+          btn.disabled = false;
+          btn.innerHTML = '<i class="ti ti-gps me-1"></i>Gunakan GPS Saya';
+        }
+      );
+    }
+
+    // ============ KAMERA ============
+    let stream = null, originalImageData = null;
+    const video  = document.getElementById('video-stream');
+    const canvas = document.getElementById('canvas-preview');
+    const ctx    = canvas.getContext('2d');
+
+    async function bukaKamera() {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        video.srcObject = stream;
+        video.style.display = 'block';
+        document.getElementById('placeholder-foto').style.display = 'none';
+        document.getElementById('btn-kamera').classList.add('d-none');
+        document.getElementById('btn-foto').classList.remove('d-none');
+        showToast('Kamera aktif!');
+      } catch (e) {
+        showToast('Gagal mengakses kamera. Coba upload file.', 'danger');
+      }
+    }
+
+    function ambilFoto() {
+      canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0);
+      originalImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      video.style.display = 'none'; canvas.style.display = 'block';
+      document.getElementById('filter-section').classList.remove('d-none');
+      document.getElementById('btn-foto').classList.add('d-none');
+      document.getElementById('btn-retake').classList.remove('d-none');
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      showToast('Foto berhasil diambil!');
+    }
+
+    function retakeFoto() {
+      canvas.style.display = 'none';
+      document.getElementById('filter-section').classList.add('d-none');
+      document.getElementById('btn-retake').classList.add('d-none');
+      document.getElementById('btn-kamera').classList.remove('d-none');
+      originalImageData = null;
+    }
+
+    function uploadFoto(input) {
+      const file = input.files[0]; if (!file) return;
+      const reader = new FileReader();
+      reader.onload = e => {
+        const img = new Image();
+        img.onload = () => {
+          canvas.width = img.width; canvas.height = img.height;
+          ctx.drawImage(img, 0, 0);
+          originalImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          canvas.style.display = 'block';
+          document.getElementById('placeholder-foto').style.display = 'none';
+          document.getElementById('filter-section').classList.remove('d-none');
+          showToast('Foto berhasil diupload!');
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function applyFilter(type, btn) {
+      if (!originalImageData) return;
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      ctx.putImageData(originalImageData, 0, 0);
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const d = imgData.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const r = d[i], g = d[i+1], b2 = d[i+2];
+        if (type === 'grayscale') {
+          const avg = 0.299*r + 0.587*g + 0.114*b2;
+          d[i] = d[i+1] = d[i+2] = avg;
+        } else if (type === 'brightness') {
+          d[i] = Math.min(255,r+60); d[i+1] = Math.min(255,g+60); d[i+2] = Math.min(255,b2+60);
+        } else if (type === 'contrast') {
+          const f = 1.5;
+          d[i]   = Math.min(255,Math.max(0,f*(r-128)+128));
+          d[i+1] = Math.min(255,Math.max(0,f*(g-128)+128));
+          d[i+2] = Math.min(255,Math.max(0,f*(b2-128)+128));
+        } else if (type === 'dark') {
+          d[i] = Math.max(0,r-60); d[i+1] = Math.max(0,g-60); d[i+2] = Math.max(0,b2-60);
+        }
+      }
+      ctx.putImageData(imgData, 0, 0);
+    }
+
+    // ============ KIRIM LAPORAN ============
+    function kirimLaporan() {
+      const user   = getCurrentUser();
+      const lat    = document.getElementById('lat').value;
+      const lng    = document.getElementById('lng').value;
+      const alamat = document.getElementById('alamat').value.trim();
+      const kat    = document.getElementById('kategori').value;
+      const urg    = document.getElementById('urgensi').value;
+      const desk   = document.getElementById('deskripsi').value.trim();
+      const msg    = document.getElementById('msg-form');
+
+      if (!lat || !lng) { msg.innerHTML = `<div class="alert alert-warning">Tandai lokasi di peta atau gunakan GPS.</div>`; window.scrollTo(0,0); return; }
+      if (!kat)         { msg.innerHTML = `<div class="alert alert-warning">Pilih kategori kerusakan.</div>`; return; }
+      if (!urg)         { msg.innerHTML = `<div class="alert alert-warning">Pilih tingkat urgensi.</div>`; return; }
+      if (!desk)        { msg.innerHTML = `<div class="alert alert-warning">Isi deskripsi kerusakan.</div>`; return; }
+
+      let fotoData = null;
+      if (canvas.style.display !== 'none') fotoData = canvas.toDataURL('image/jpeg', 0.6);
+
+      const laporan = tambahLaporan({
+        userId: user.id, namaWarga: user.nama, emailWarga: user.email,
+        kategori: kat, urgensi: urg, deskripsi: desk,
+        alamat: alamat || `Koordinat ${parseFloat(lat).toFixed(4)}, ${parseFloat(lng).toFixed(4)}`,
+        lat: parseFloat(lat), lng: parseFloat(lng), foto: fotoData
+      });
+
+      showToast('Laporan berhasil dikirim!');
+      setTimeout(() => window.location.href = 'riwayat.html', 1000);
+    }
+  </script>
+</body>
+</html>

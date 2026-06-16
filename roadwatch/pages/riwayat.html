@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Riwayat Laporan — RoadWatch</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css" />
+  <link rel="stylesheet" href="../css/style.css" />
+</head>
+<body class="bg-light">
+
+  <nav class="navbar navbar-dark bg-primary">
+    <div class="container">
+      <a class="navbar-brand fw-bold" href="../index.html"><i class="ti ti-road me-2"></i>RoadWatch</a>
+      <div class="d-flex gap-2">
+        <a href="lapor.html" class="btn btn-warning btn-sm"><i class="ti ti-plus me-1"></i>Lapor Baru</a>
+        <button class="btn btn-outline-light btn-sm" onclick="logout()"><i class="ti ti-logout me-1"></i>Logout</button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container py-4" style="max-width:800px">
+    <div class="d-flex align-items-center justify-content-between mb-4">
+      <div>
+        <h4 class="fw-bold mb-0"><i class="ti ti-list-details me-2 text-primary"></i>Riwayat Laporan Saya</h4>
+        <p class="text-muted small mb-0" id="sub-title">Memuat data...</p>
+      </div>
+    </div>
+
+    <!-- FILTER -->
+    <div class="d-flex gap-2 mb-3 flex-wrap">
+      <select id="f-status" class="form-select form-select-sm w-auto" onchange="render()">
+        <option value="">Semua Status</option>
+        <option>Menunggu</option>
+        <option>Diproses</option>
+        <option>Selesai</option>
+        <option>Ditolak</option>
+      </select>
+      <input type="text" id="search" class="form-control form-control-sm w-auto" placeholder="🔍 Cari..." oninput="render()" />
+    </div>
+
+    <!-- LIST LAPORAN -->
+    <div id="list-laporan"></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="../js/auth.js"></script>
+  <script src="../js/data.js"></script>
+  <script>
+    requireLogin();
+    const user = getCurrentUser();
+
+    function render() {
+      const status  = document.getElementById('f-status').value;
+      const keyword = document.getElementById('search').value;
+      const hasil   = filterLaporan({ userId: user.id, status, keyword });
+
+      document.getElementById('sub-title').textContent = `${hasil.length} laporan ditemukan atas nama ${user.nama}`;
+
+      const container = document.getElementById('list-laporan');
+      if (hasil.length === 0) {
+        container.innerHTML = `
+          <div class="text-center text-muted py-5">
+            <i class="ti ti-mood-empty" style="font-size:3rem"></i>
+            <p class="mt-2">Belum ada laporan.</p>
+            <a href="lapor.html" class="btn btn-primary btn-sm">Buat Laporan Pertama</a>
+          </div>`;
+        return;
+      }
+
+      container.innerHTML = hasil.map(l => `
+        <div class="card border-0 shadow-sm mb-3">
+          <div class="card-body">
+            <div class="row g-3 align-items-start">
+              <div class="col-auto">
+                ${l.foto
+                  ? `<img src="${l.foto}" style="width:80px;height:80px;object-fit:cover;border-radius:10px">`
+                  : `<div style="width:80px;height:80px;background:#f1f5f9;border-radius:10px;display:flex;align-items:center;justify-content:center"><i class="ti ti-photo text-muted" style="font-size:1.5rem"></i></div>`}
+              </div>
+              <div class="col">
+                <div class="d-flex flex-wrap gap-2 align-items-center mb-1">
+                  <span class="fw-bold">${l.kategori}</span>
+                  ${badgeUrgensi(l.urgensi)}
+                  ${badgeStatus(l.status)}
+                </div>
+                <p class="text-muted small mb-1">${l.deskripsi?.substring(0, 120) || '-'}...</p>
+                <p class="small text-muted mb-0">
+                  <i class="ti ti-map-pin me-1"></i>${l.alamat || 'Lokasi tidak tersedia'}
+                </p>
+                <p class="small text-muted mb-0">
+                  <i class="ti ti-calendar me-1"></i>${formatTanggal(l.tanggal)}
+                </p>
+                ${l.catatan ? `
+                  <div class="alert alert-info py-1 px-2 mt-2 mb-0 small">
+                    <i class="ti ti-message me-1"></i><strong>Catatan petugas:</strong> ${l.catatan}
+                  </div>` : ''}
+              </div>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    render();
+  </script>
+</body>
+</html>

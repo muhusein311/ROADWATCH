@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard Petugas — RoadWatch</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css" />
+  <link rel="stylesheet" href="../css/style.css" />
+
+  <!-- EmailJS SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+</head>
+<body class="bg-light">
+
+  <nav class="navbar navbar-dark bg-primary">
+    <div class="container-fluid">
+      <a class="navbar-brand fw-bold" href="../index.html"><i class="ti ti-road me-2"></i>RoadWatch</a>
+      <div class="d-flex align-items-center gap-3">
+        <div id="cuaca-widget" class="text-white small opacity-75"></div>
+        <a href="peta.html" class="btn btn-outline-light btn-sm"><i class="ti ti-map me-1"></i>Peta</a>
+        <button class="btn btn-outline-light btn-sm" onclick="logout()"><i class="ti ti-logout me-1"></i>Logout</button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container-fluid py-4 px-4">
+
+    <!-- HEADER -->
+    <div class="d-flex align-items-center justify-content-between mb-4">
+      <div>
+        <h4 class="fw-bold mb-0">Dashboard Petugas</h4>
+        <p class="text-muted small mb-0">Kelola dan update status laporan warga</p>
+      </div>
+      <span class="badge bg-primary" id="user-badge"></span>
+    </div>
+
+    <!-- STAT CARDS -->
+    <div class="row g-3 mb-4" id="stat-cards">
+      <div class="col-6 col-md-3">
+        <div class="stat-card text-center">
+          <i class="ti ti-file-report text-primary mb-1" style="font-size:1.75rem"></i>
+          <h3 class="fw-bold mb-0" id="st-total">0</h3>
+          <p class="text-muted small mb-0">Total</p>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="stat-card text-center">
+          <i class="ti ti-clock text-warning mb-1" style="font-size:1.75rem"></i>
+          <h3 class="fw-bold mb-0" id="st-menunggu">0</h3>
+          <p class="text-muted small mb-0">Menunggu</p>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="stat-card text-center">
+          <i class="ti ti-settings text-info mb-1" style="font-size:1.75rem"></i>
+          <h3 class="fw-bold mb-0" id="st-proses">0</h3>
+          <p class="text-muted small mb-0">Diproses</p>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="stat-card text-center">
+          <i class="ti ti-circle-check text-success mb-1" style="font-size:1.75rem"></i>
+          <h3 class="fw-bold mb-0" id="st-selesai">0</h3>
+          <p class="text-muted small mb-0">Selesai</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- FILTER & SEARCH -->
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-body py-2">
+        <div class="row g-2 align-items-center">
+          <div class="col-md-4">
+            <input type="text" id="search" class="form-control form-control-sm" placeholder="🔍 Cari nama warga, alamat, kategori..." oninput="renderTabel()" />
+          </div>
+          <div class="col-auto">
+            <select id="f-status" class="form-select form-select-sm" onchange="renderTabel()">
+              <option value="">Semua Status</option>
+              <option>Menunggu</option>
+              <option>Diproses</option>
+              <option>Selesai</option>
+              <option>Ditolak</option>
+            </select>
+          </div>
+          <div class="col-auto">
+            <select id="f-kategori" class="form-select form-select-sm" onchange="renderTabel()">
+              <option value="">Semua Kategori</option>
+              <option>Jalan Berlubang</option>
+              <option>Trotoar Rusak</option>
+              <option>Got / Drainase Tersumbat</option>
+              <option>Lampu Jalan Mati</option>
+              <option>Rambu Lalu Lintas Rusak</option>
+              <option>Jembatan Rusak</option>
+              <option>Lainnya</option>
+            </select>
+          </div>
+          <div class="col-auto">
+            <select id="f-urgensi" class="form-select form-select-sm" onchange="renderTabel()">
+              <option value="">Semua Urgensi</option>
+              <option>Tinggi</option>
+              <option>Sedang</option>
+              <option>Rendah</option>
+            </select>
+          </div>
+          <div class="col-auto ms-auto">
+            <span class="badge bg-secondary" id="jml-badge">0</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TABEL LAPORAN -->
+    <div class="card border-0 shadow-sm">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0" id="tabel-laporan">
+          <thead class="table-light">
+            <tr>
+              <th class="ps-3">Foto</th>
+              <th>Warga</th>
+              <th>Kategori</th>
+              <th>Lokasi</th>
+              <th>Urgensi</th>
+              <th>Status</th>
+              <th>Tanggal</th>
+              <th class="text-center">Aksi</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL UPDATE STATUS -->
+  <div class="modal fade" id="modalUpdate" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title fw-bold">Update Status Laporan</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="modal-id" />
+          <input type="hidden" id="modal-email" />
+
+          <div class="mb-3" id="modal-foto-wrap"></div>
+
+          <div class="mb-3" id="modal-info"></div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold small">Status Baru</label>
+            <select id="modal-status" class="form-select">
+              <option>Menunggu</option>
+              <option>Diproses</option>
+              <option>Selesai</option>
+              <option>Ditolak</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold small">Catatan Petugas (opsional)</label>
+            <textarea id="modal-catatan" class="form-control" rows="3" placeholder="Tambahkan keterangan penanganan..."></textarea>
+          </div>
+          <div class="form-check mb-1">
+            <input class="form-check-input" type="checkbox" id="kirim-email" checked>
+            <label class="form-check-label small" for="kirim-email">
+              <i class="ti ti-mail me-1 text-primary"></i>Kirim notifikasi email ke warga
+            </label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+          <button class="btn btn-primary fw-semibold" onclick="simpanUpdate()">
+            <i class="ti ti-check me-1"></i>Simpan Update
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="../js/auth.js"></script>
+  <script src="../js/data.js"></script>
+  <script>
+    requirePetugas();
+    const user = getCurrentUser();
+    document.getElementById('user-badge').textContent = '👤 ' + user.nama;
+
+    // ============ EMAILJS CONFIG ============
+    // GANTI dengan Service ID dan Public Key dari emailjs.com kamu
+    const EMAILJS_SERVICE_ID  = 'YOUR_SERVICE_ID';
+    const EMAILJS_TEMPLATE_ID = 'YOUR_TEMPLATE_ID';
+    const EMAILJS_PUBLIC_KEY  = 'YOUR_PUBLIC_KEY';
+    emailjs.init(EMAILJS_PUBLIC_KEY);
+
+    // ============ API CUACA (OpenWeatherMap) ============
+    // GANTI dengan API key dari openweathermap.org (gratis)
+    const WEATHER_API_KEY = 'YOUR_OPENWEATHER_KEY';
+    const KOTA = 'Surabaya';
+
+    async function loadCuaca() {
+      try {
+        const res  = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${KOTA}&appid=${WEATHER_API_KEY}&units=metric&lang=id`);
+        const data = await res.json();
+        if (data.weather) {
+          document.getElementById('cuaca-widget').innerHTML =
+            `<i class="ti ti-cloud me-1"></i>${KOTA}: ${Math.round(data.main.temp)}°C — ${data.weather[0].description}`;
+        }
+      } catch (e) {
+        // API key belum diisi, abaikan
+      }
+    }
+    loadCuaca();
+
+    // ============ RENDER STATISTIK ============
+    function updateStat() {
+      const all = getAllLaporan();
+      document.getElementById('st-total').textContent    = all.length;
+      document.getElementById('st-menunggu').textContent = all.filter(l => l.status === 'Menunggu').length;
+      document.getElementById('st-proses').textContent   = all.filter(l => l.status === 'Diproses').length;
+      document.getElementById('st-selesai').textContent  = all.filter(l => l.status === 'Selesai').length;
+    }
+
+    // ============ RENDER TABEL ============
+    function renderTabel() {
+      const keyword  = document.getElementById('search').value;
+      const status   = document.getElementById('f-status').value;
+      const kategori = document.getElementById('f-kategori').value;
+      const urgensi  = document.getElementById('f-urgensi').value;
+      const hasil    = filterLaporan({ keyword, status, kategori, urgensi });
+
+      document.getElementById('jml-badge').textContent = hasil.length + ' laporan';
+
+      const tbody = document.getElementById('tbody');
+      if (hasil.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-5"><i class="ti ti-mood-empty" style="font-size:2rem"></i><p class="mt-2">Tidak ada laporan</p></td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = hasil.map(l => `
+        <tr>
+          <td class="ps-3">
+            ${l.foto
+              ? `<img src="${l.foto}" style="width:52px;height:52px;object-fit:cover;border-radius:8px">`
+              : `<div style="width:52px;height:52px;background:#f1f5f9;border-radius:8px;display:flex;align-items:center;justify-content:center"><i class="ti ti-photo text-muted"></i></div>`}
+          </td>
+          <td>
+            <div class="fw-semibold small">${l.namaWarga || '-'}</div>
+            <div class="text-muted" style="font-size:11px">${l.emailWarga || ''}</div>
+          </td>
+          <td><span class="small">${l.kategori}</span></td>
+          <td>
+            <div class="small text-truncate" style="max-width:150px" title="${l.alamat || ''}">${l.alamat || '-'}</div>
+          </td>
+          <td>${badgeUrgensi(l.urgensi)}</td>
+          <td>${badgeStatus(l.status)}</td>
+          <td><span class="small text-muted">${formatTanggal(l.tanggal)}</span></td>
+          <td class="text-center">
+            <button class="btn btn-sm btn-outline-primary" onclick="bukaModal('${l.id}')">
+              <i class="ti ti-edit me-1"></i>Update
+            </button>
+            <button class="btn btn-sm btn-outline-danger ms-1" onclick="konfirmasiHapus('${l.id}')">
+              <i class="ti ti-trash"></i>
+            </button>
+          </td>
+        </tr>
+      `).join('');
+
+      updateStat();
+    }
+
+    // ============ MODAL UPDATE ============
+    const modalBS = new bootstrap.Modal(document.getElementById('modalUpdate'));
+
+    function bukaModal(id) {
+      const l = getLaporanById(id);
+      if (!l) return;
+      document.getElementById('modal-id').value     = l.id;
+      document.getElementById('modal-email').value  = l.emailWarga || '';
+      document.getElementById('modal-status').value = l.status;
+      document.getElementById('modal-catatan').value= l.catatan || '';
+      document.getElementById('modal-info').innerHTML = `
+        <div class="bg-light rounded p-3 small">
+          <strong>${l.kategori}</strong> — ${badgeUrgensi(l.urgensi)}<br>
+          <span class="text-muted"><i class="ti ti-map-pin me-1"></i>${l.alamat || 'Lokasi tidak tersedia'}</span><br>
+          <span class="text-muted mt-1 d-block">${l.deskripsi?.substring(0,120)}...</span>
+        </div>`;
+      document.getElementById('modal-foto-wrap').innerHTML = l.foto
+        ? `<img src="${l.foto}" class="img-fluid rounded mb-2" style="max-height:160px;object-fit:cover;width:100%">`
+        : '';
+      modalBS.show();
+    }
+
+    function simpanUpdate() {
+      const id      = document.getElementById('modal-id').value;
+      const email   = document.getElementById('modal-email').value;
+      const status  = document.getElementById('modal-status').value;
+      const catatan = document.getElementById('modal-catatan').value;
+      const kirim   = document.getElementById('kirim-email').checked;
+
+      const laporan = updateStatus(id, status, catatan);
+      if (!laporan) return;
+
+      // Kirim email notifikasi via EmailJS
+      if (kirim && email && EMAILJS_SERVICE_ID !== 'YOUR_SERVICE_ID') {
+        emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+          to_email   : email,
+          to_name    : laporan.namaWarga,
+          kategori   : laporan.kategori,
+          alamat     : laporan.alamat,
+          status_baru: status,
+          catatan    : catatan || 'Tidak ada catatan tambahan.',
+          tanggal    : formatTanggal(new Date().toISOString())
+        }).then(() => showToast('Email notifikasi terkirim ke warga!'))
+          .catch(() => showToast('Gagal kirim email.', 'danger'));
+      }
+
+      modalBS.hide();
+      showToast('Status laporan berhasil diperbarui!');
+      renderTabel();
+    }
+
+    function konfirmasiHapus(id) {
+      if (confirm('Yakin ingin menghapus laporan ini? Data tidak dapat dikembalikan.')) {
+        hapusLaporan(id);
+        showToast('Laporan berhasil dihapus.', 'warning');
+        renderTabel();
+      }
+    }
+
+    // Init render
+    renderTabel();
+  </script>
+</body>
+</html>
